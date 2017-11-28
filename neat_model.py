@@ -34,9 +34,9 @@ class NeatModel(Model):
         return velocity[1] * math.cos(math.radians(angle - velocity[0]))
 
     def predict(self, state):
-        input = self._to_input_array(state, smaller=True)
+        input = self.stateToInput(state)
         if np.isnan(input).any():
-            print('NaN INPUTS!!!')
+            print('#####################  NaN inputs')
             return
         output = self.net.activate(input)
         self.acceleration = output[0]
@@ -65,28 +65,19 @@ class NeatModel(Model):
                 self.cumul_speed / self.predictions,
             ])
 
-    def _to_input_array(self, state, smaller=False):
+    def stateToInput(self, state):
         array = []
         array.append(state.angle / 180.0)
-        # TODO - TO ADD BACK IF USING THE CIRCUIT MODEL
-        # array.append(self.damage/10000.0)
         array.append(state.speed_x / 40.0)
         array.append(state.speed_y / 40.0)
-        for j in range(0, 19, 3 if smaller else 1):
+        for j in range(0, 19, 3):
             if math.fabs(state.distance_from_center) > 1 or state.distances_from_edge[j] < 0:
                 array.append(-1)
             else:
                 array.append(state.distances_from_edge[j] / 200.0)
         array.append(state.distance_from_center)
-
-        # TODO - TO REMOVE FOR THE CIRCUIT MODEL
-        # for j in range(4):
-        #     array.append(self.wheel_velocities[j] / 3000.0)  # /150.0
+        for j in range(4):
+            array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
         array.append(state.z - 0.36)
         array.append(state.speed_z / 10.0)
-
-        # TODO - deal with problem that those values are reliable only once every second
-        # for i in range(5):
-        #     array.append(self.focused_distances_from_edge[i]/200.0)
-
         return np.array(array)
