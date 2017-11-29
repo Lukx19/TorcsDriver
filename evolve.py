@@ -9,7 +9,9 @@ import argparse
 # import datetime
 # import importlib
 import simulate
-from neat import nn, population, statistics, visualize
+# from neat import nn, population, statistics
+import neat
+# , neat.visualize
 
 FILE_PATH = os.path.realpath(__file__)
 DIR_PATH = os.path.dirname(FILE_PATH)
@@ -18,181 +20,132 @@ DIR_PATH = os.path.dirname(FILE_PATH)
 # sys.path.insert(0, os.path.join(DIR_PATH, '../../'))
 
 
-
-def evalGenomes(genomes, evaluate_function=None, cleaner=None, timelimit=None):
+def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit=None):
 
     print('\nStarting evaluation...\n\n')
     tot = len(genomes)
+    # print(genomes)
     # evaluate the genotypes one by one
-    for i, g in enumerate(genomes):
+    for i, g in genomes:
         print('evaluating', i + 1, '/', tot, '\n')
-        net = nn.create_recurrent_phenotype(g)
+        net = neat.nn.recurrent.RecurrentNetwork.create(g, config)
         # run the simulation to evaluate the model
-        values = evaluate_function(net)
-        if values is None:
+        values = evaluate_function(net)[0]
+        # print(values, len(values))
+        if values is None or len(values) == 0:
             fitness = -100
         else:
-            last_result = []
-            later_time = 0
+            time, raced_distance, distance_from_start, damage, offroad_penalty, avg_speed = values[-1]
+            distance = avg_speed * time / timelimit
+            fitness = avg_speed + distance_from_start - \
+                300 * offroad_penalty  # - 0.2 * damage
 
-            if timelimit is not None:
-                for val in values:
-                    if val[0] > later_time and val[0] <= timelimit:
-                        last_result = val
-                        later_time = val[0]
-                    elif val[0] > timelimit:
-                        break
-
-                if last_result[0] < timelimit:
-                    last_result[6] *= last_result[0] / timelimit
-                    last_result[0] = timelimit
-
-            else:
-                last_result = values[-1]
-
-            duration, distance, laps, distance_from_start, damage, penalty, avg_speed = last_result[
-                :7]
-
-            if timelimit is not None:
-                avg_speed *= duration / timelimit
-                duration = timelimit
-                fitness = avg_speed * duration - 0.2 * damage - 300 * penalty
-
-                if laps >= 2:
-
-                    fitness += 50.0 * avg_speed  # distance/(duration+1)
-
-            else:
-                fitness = fitness_function(*last_result[:7])
-
-            #fitness = distance - 1000.0 * damage/ (math.fabs(distance) if distance != 0.0 else 1.0) - 100 * penalty
-
-            print('\tDistance = ', distance)
-
-            print('\tEstimated Distance = ', avg_speed * duration)
-
+            print('\tDistance = ', distance_from_start)
+            print('\tEstimated Distance = ', distance)
             print('\tDamage = ', damage)
-
-            print('\tPenalty = ', penalty)
-
+            print('\tPenalty = ', offroad_penalty)
             print('\tAvgSpeed = ', avg_speed)
-
         print('\tFITNESS =', fitness, '\n')
-
         g.fitness = fitness
 
-    print('\n... finished evaluation\n\n')
+    print('\nfinished evaluation\n\n')
 
-    if cleaner is not None:
+    # if cleaner is not None:
 
-        # at the end of the generation, clean the files we don't need anymore
+    #     # at the end of the generation, clean the files we don't need anymore
 
-        cleaner()
+    #     cleaner()
 
 
-def get_best_genome(population):
+# def get_best_genome(population):
 
-    best = None
-    for s in population.species:
-        for g in s.members:
-            if best is None or best.fitness is None or (g.fitness is not None and g.fitness > best.fitness):
-                best = g
-    return best
+#     best = None
+#     for s in population.species:
+#         for g in s.members:
+#             if best is None or best.fitness is None or (g.fitness is not None and g.fitness > best.fitness):
+#                 best = g
+#     return best
 
 
 def run(output_dir, neat_config=None, generations=20, port=3001, frequency=None, unstuck=False, evaluation=None, checkpoint=None, configuration=None, timelimit=None):
-    clients =[{
-        port:port,
+    clients = [{
+        'port': port,
     }]
-    sim = simulate.TorcsFitnessEvaluation(torcs_config=configuration,clients=clients,debug_path=output_dir)
+    print(str(clients))
+    sim = simulate.TorcsFitnessEvaluation(
+        torcs_config=configuration, clients=clients, debug_path=output_dir)
 
     best_model_file = os.path.join(output_dir, 'best.pickle')
 
-    pop = population.Population(neat_config)
-
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         neat_config)
+    pop = neat.population.Population(config)
+    # define reporting and checkpointing
+    reporter_set = neat.reporting.ReporterSet()
+    reporter_set.add(neat.checkpoint.Checkpointer(generation_interval=frequency,
+                                                  time_interval_seconds=None, filename_prefix=output_dir + '/checkpoint-'))
+    reporter_set.add(neat.statistics.StatisticsReporter())
+    reporter_set.add(neat.reporting.StdOutReporter(show_species_detail=False))
+    # loading last checkpoint
     if checkpoint is not None:
         print('Loading from ', checkpoint)
-        pop.load_checkpoint(checkpoint)
+        pop = neat.checkpoint.restore_checkpoint(checkpoint)
 
-    for g in range(1, generations + 1):
+    def fitness_fce(genomes, config): return evalGenomes(
+        genomes=genomes,
+        config=config,
+        evaluate_function=lambda model: sim.evaluate([model]),
+        cleaner=None,
+        timelimit=timelimit)
+    winner = pop.run(fitness_function=fitness_fce, n=generations)
+    # for g in range(1, generations + 1):
+    # if g % frequency == 0:
+    #     print('Saving best net in {}'.format(best_model_file))
+    #     best_genome = get_best_genome(pop)
+    #     pickle.dump(nn.create_recurrent_phenotype(
+    #         best_genome), open(best_model_file, "wb"))
 
-        pop.run(fitness_function=
-            lambda genomes: evalGenomes(
-                    genomes=genomes,
-                    evaluate_function=lambda genom:sim.evaluation([genom]),
-                    cleaner=None,
-                    timelimit=timelimit),n=1)
+    #     # new_checkpoint = os.path.join(
+    #     #     output_dir, 'neat_gen_{}.checkpoint'.format(pop.generation))
 
-        if g % frequency == 0:
+    #     # print('Storing to ', new_checkpoint)
+    #     # pop.save_checkpoint(new_checkpoint)
 
-            print('Saving best net in {}'.format(best_model_file))
+    #     print('Plotting statistics')
+    #     neat.visualize.plot_stats(pop.statistics, filename=os.path.join(
+    #         output_dir, 'avg_fitness.svg'))
+    #     neat.visualize.plot_species(pop.statistics, filename=os.path.join(
+    #         output_dir, 'speciation.svg'))
 
-            best_genome = get_best_genome(pop)
-
-            pickle.dump(nn.create_recurrent_phenotype(
-                best_genome), open(best_model_file, "wb"))
-
-            new_checkpoint = os.path.join(
-                output_dir, 'neat_gen_{}.checkpoint'.format(pop.generation))
-
-            print('Storing to ', new_checkpoint)
-
-            pop.save_checkpoint(new_checkpoint)
-
-            print('Plotting statistics')
-
-            visualize.plot_stats(pop.statistics, filename=os.path.join(
-                output_dir, 'avg_fitness.svg'))
-
-            visualize.plot_species(pop.statistics, filename=os.path.join(
-                output_dir, 'speciation.svg'))
-
-            print('Save network view')
-
-            visualize.draw_net(best_genome, view=False,
-
-                               filename=os.path.join(
-                                   output_dir, "nn_winner-enabled-pruned.gv"),
-
-                               show_disabled=False, prune_unused=True)
-
-            visualize.draw_net(best_genome, view=False,
-                               filename=os.path.join(output_dir, "nn_winner.gv"))
-
-            visualize.draw_net(best_genome, view=False, filename=os.path.join(output_dir, "nn_winner-enabled.gv"),
-
-                               show_disabled=False)
+    #     print('Save network view')
+    #     neat.visualize.draw_net(best_genome, view=False,
+    #                        filename=os.path.join(
+    #                            output_dir, "nn_winner-enabled-pruned.gv"),
+    #                        show_disabled=False, prune_unused=True)
+    #     neat.visualize.draw_net(best_genome, view=False,
+    #                        filename=os.path.join(output_dir, "nn_winner.gv"))
+    #     neat.visualize.draw_net(best_genome, view=False, filename=os.path.join(output_dir, "nn_winner-enabled.gv"),
+    #                        show_disabled=False)
 
     print('Number of evaluations: {0}'.format(pop.total_evaluations))
-
     print('Saving best net in {}'.format(best_model_file))
-
-    pickle.dump(nn.create_recurrent_phenotype(
-        get_best_genome(pop)), open(best_model_file, "wb"))
-
-    # Display the most fit genome.
-
-    #print('\nBest genome:')
-
-    winner = pop.statistics.best_genome()
-
-    # print(winner)
+    pickle.dump(neat.nn.recurrent.RecurrentNetwork.create(
+        winner, config), open(best_model_file, "wb"))
 
     # Visualize the winner network and plot/log statistics.
 
-    visualize.draw_net(winner, view=True, filename=os.path.join(
+    neat.visualize.draw_net(winner, view=True, filename=os.path.join(
         output_dir, "nn_winner.gv"))
-
-    visualize.draw_net(winner, view=True, filename=os.path.join(
+    neat.visualize.draw_net(winner, view=True, filename=os.path.join(
         output_dir, "nn_winner-enabled.gv"), show_disabled=False)
-
-    visualize.draw_net(winner, view=True, filename=os.path.join(
+    neat.visualize.draw_net(winner, view=True, filename=os.path.join(
         output_dir, "nn_winner-enabled-pruned.gv"), show_disabled=False, prune_unused=True)
 
-    visualize.plot_stats(pop.statistics, filename=os.path.join(
+    neat.visualize.plot_stats(pop.statistics, filename=os.path.join(
         output_dir, 'avg_fitness.svg'))
 
-    visualize.plot_species(pop.statistics, filename=os.path.join(
+    neat.visualize.plot_species(pop.statistics, filename=os.path.join(
         output_dir, 'speciation.svg'))
 
     statistics.save_stats(pop.statistics, filename=os.path.join(
@@ -216,7 +169,7 @@ if __name__ == '__main__':
         '--checkpoint',
         help='Checkpoint file',
         type=str,
-        default="checkpint.txt"
+        default=None
     )
 
     parser.add_argument(
@@ -240,7 +193,7 @@ if __name__ == '__main__':
         '--output_dir',
         help='Directory where to store checkpoint.',
         type=str,
-        default="./"
+        default="debug"
     )
 
     parser.add_argument(
@@ -271,7 +224,7 @@ if __name__ == '__main__':
         '--configuration',
         help='XML configuration file for running the race',
         type=str,
-        default='config-torcs/aalborg.xml'
+        default='config-torcs/forza.xml'
     )
 
     # parser.add_argument(

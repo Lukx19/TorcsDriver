@@ -1,7 +1,6 @@
 from pytocl.protocol import Client
 from driver import Driver
-from rnn_model import RNNModelSteering
-from neat_model import NeatModel
+
 import argparse
 import signal
 import sys
@@ -60,11 +59,13 @@ if __name__ == '__main__':
     )
     parser.add_argument('-v', help='Debug log level.', action='store_true')
     args = parser.parse_args()
-
+    print(args.model)
     model_type = args.model
     if args.model == 'RNN':
+        from rnn_model import RNNModelSteering
         model = RNNModelSteering(args.f)
     elif args.model == 'NEAT':
+        from neat_model import NeatModel
         model = NeatModel(args.model_file, args.output_file)
     print(args.model,model)
         # switch log level:

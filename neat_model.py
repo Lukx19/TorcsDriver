@@ -24,21 +24,22 @@ class NeatModel(Model):
 
     def saveResults(self):
         with open(self.result_file, 'w') as f:
-            f.write(
-                "time, raced_distance, distance_from_start, damage, offroad_penalty, avg_speed\n")
-            for r in self.results:
-                f.write("{}, {}, {}, {}, {}, {}\n".format(*r))
+            if len(self.results) > 0:
+                f.write(
+                    "time, raced_distance, distance_from_start, damage, offroad_penalty, avg_speed\n")
+                for r in self.results:
+                    f.write("{}, {}, {}, {}, {}, {}\n".format(*r))
 
     def _projectSpeed(self,speed_x, speed_y, angle):
         velocity = np.angle(speed_x + 1j * speed_y, True),np.sqrt(speed_x ** 2 + speed_y ** 2)
         return velocity[1] * math.cos(math.radians(angle - velocity[0]))
 
     def predict(self, state):
-        input = self.stateToInput(state)
-        if np.isnan(input).any():
+        inputs = self.stateToInput(state)
+        if np.isnan(inputs).any():
             print('#####################  NaN inputs')
             return
-        output = self.net.activate(input)
+        output = self.net.activate(inputs)
         self.acceleration = output[0]
         self.steering = output[1]
         self.breaking = output[2]

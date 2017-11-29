@@ -27,7 +27,8 @@ class TorcsFitnessEvaluation:
     CLIENT_PATH = os.path.join(DIR_PATH, '')
     SIGTERMHUTDOWN_WAIT = 10
     RESULT_SAWING_WAIT = 1
-    SERVER_TIMEOUT = 100
+    SERVER_TIMEOUT = 5
+    SHUTDOWN_WAIT = 3
 
     def __init__(self, torcs_config, clients, debug_path="debug"):
         self.torcs_config = torcs_config
@@ -42,56 +43,57 @@ class TorcsFitnessEvaluation:
         os.killpg(os.getpgid(server.pid), signal.SIGTERM)
 
     def _killClient(self, client):
-        print('Killing client' + str(client.pid))
+        print('Terminating client' + str(client.pid))
         # Try to be gentle
         os.killpg(os.getpgid(client.pid), signal.SIGTERM)
         # give it some time to stop gracefully
         client.wait(timeout=self.SHUTDOWN_WAIT)
         # if it is still running, kill it
         if client.poll() is None:
-            print('\tTrying to kill client')
+            print('\tTrying to hard kill client')
             os.killpg(os.getpgid(client.pid), signal.SIGKILL)
             time.sleep(self.SHUTDOWN_WAIT)
 
     def _startClient(self, port, files, model_file):
-        print('Starting Client')
         #'-o', results_file
         client = subprocess.Popen(
             ['python', 'run.py', '-p',
-                str(port), '-o', files['results_file'], '-m NEAT', '-f', model_file],
-            stdout=files['stdout'], stderr=files['stderr'], cwd=files['CLIENT_PATH'], preexec_fn=os.setsid)
+                str(port), '-o', files['result_file'], '-m', 'NEAT', '-f', model_file],
+            stdout=files['stdout'], stderr=files['stderr'], cwd=self.CLIENT_PATH, preexec_fn=os.setsid)
+        print('Started Client '+ str(client.pid))
         return client
 
     def _startServer(self, configuration, stdout, stderr):
         try:
-            print('Waiting for server to stop')
+            print('Starting server')
+            # '-r', os.path.join(self.DIR_PATH, configuration)
             server = subprocess.Popen(
-                ['time', 'torcs', '-nofuel', '-nolaptime', '-r', configuration],
+                ['time', 'torcs', '-nofuel', '-nolaptime','-r', os.path.join(self.DIR_PATH, configuration)],
                 stdout=stdout,
                 stderr=stderr,
                 preexec_fn=os.setsid
             )
-
+            print('Waiting for server to stop')
             server.wait(timeout=self.SERVER_TIMEOUT)
 
         except subprocess.TimeoutExpired:
             print('SERVER TIMED-OUT!')
-            return False
+            return False,server
         except:
             print('Ops! Something happened"')
             traceback.print_exc()
-            return False
+            return False,server
         return True, server
 
     def _openDebugFiles(self, base_path, folder):
+        base_dir = str(os.path.join(base_path, folder))
+        if not os.path.exists(base_dir):
+            os.makedirs(base_dir)
         files = {
-            'stdout_file': os.path.join(base_path, folder + '/out.log'),
-            'stderr_file': os.path.join(base_path, folder + '/err.log'),
-            'result_file': os.path.join(base_path, folder + '/result.log'),
+            'stdout_file': os.path.join(base_dir, 'out.log'),
+            'stderr_file': os.path.join(base_dir, 'err.log'),
+            'result_file': os.path.join(base_dir, 'result.log'),
         }
-        for key, file in files:
-            if not os.path.exists(file):
-                os.makedirs(file)
         files['stdout'] = open(files['stdout_file'], 'w')
         files['stderr'] = open(files['stderr_file'], 'w')
         return files
@@ -108,9 +110,15 @@ class TorcsFitnessEvaluation:
         try:
             results = open(file_name, 'r')
             values = []
+            skip_header=True
             for line in results.readlines():
+                if skip_header==True:
+                    skip_header = False
+                    continue
                 # read the comma-separated values in the first line of the file
-                values.append([float(x) for x in line.split(',')])
+                splited = [float(x) for x in line.split(',')]
+                if len(splited) > 1:
+                    values.append(splited)
             results.close()
         except IOError:
             # if the files doesn't exist print, there might have been some error...
@@ -131,12 +139,13 @@ class TorcsFitnessEvaluation:
 
         for i, client in enumerate(self.clients):
             c = {}
-            model_file = self.debug_path + '/' + current_time + 'model_temp' + id + '.pickle'
+            model_file = self.debug_path + '/' + 'model_temp' + str(id) + '.pickle'
+            
             # dumping model to file so it can be used inside driver
             with open(model_file, 'wb') as f:
                 pickle.dump(clients_model[i], f)
 
-            c['files'] = self._openDebugFiles(self.debug_path, 'client ' + id)
+            c['files'] = self._openDebugFiles(self.debug_path, 'client' + str(id))
             c['client'] = self._startClient(
                 port=client['port'], model_file=model_file, files=c['files'])
             print('Results at', c['files']['result_file'])
@@ -147,23 +156,23 @@ class TorcsFitnessEvaluation:
                                           stdout=server_debugs['stdout'], stderr=server_debugs['stderr'])
         if state == False:
             self._killServer(server)
-            for client in clients_data:
-                copyfile(client['model_file'], client['model_file'] + 'error')
+        for client in clients_data:
+                # copyfile(client['model_file'], client['model_file'] + 'error')
                 self._killClient(client['client'])
-                self._closeDebugFiles(client['files'])
+                self._closeDebugFiles(client['files'],current_time)
 
         print('Simulation ended')
 
         # wait a second for the results file to be created
 
-        time.sleep(30)
+        # time.sleep(30)
 
         # if the result file hasn't been created yet, try 10 times waiting 'RESULT_SAWING_WAIT' seconds between each attempt
 
         results = []
         for client in clients_data:
             results.append(self._parseResultFile(
-                client['files']['results_file']))
+                client['files']['result_file']))
         end_time = time.time()
 
         print('Total Execution Time =', end_time - start_time, 'seconds')
