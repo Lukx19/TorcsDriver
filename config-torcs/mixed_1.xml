@@ -31,6 +31,7 @@
     <attstr name="type" val="race"/>
     <attstr name="starting order" val="drivers list"/>
     <attstr name="restart" val="no"/>
+    <attstr name="display mode" val="results only"/>
     <attnum name="laps" val="2"/>
     <section name="Starting Grid">
       <attnum name="rows" val="2"/>
@@ -48,7 +49,7 @@
     <attnum name="focused idx" val="0"/>
     <attstr name="focused module" val="scr_server"/>
     <section name="1">
-      <attnum name="idx" val="6"/>
+      <attnum name="idx" val="0"/>
       <attstr name="module" val="scr_server"/>
     </section>
 
