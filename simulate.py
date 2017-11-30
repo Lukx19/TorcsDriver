@@ -27,15 +27,15 @@ class TorcsFitnessEvaluation:
     CLIENT_PATH = os.path.join(DIR_PATH, '')
     SIGTERMHUTDOWN_WAIT = 10
     RESULT_SAWING_WAIT = 1
-    SERVER_TIMEOUT = 5
     SHUTDOWN_WAIT = 3
 
-    def __init__(self, torcs_config, clients, debug_path="debug"):
+    def __init__(self, torcs_config, clients, debug_path="debug", timelimit=3):
         self.torcs_config = torcs_config
         self.clients = clients
         self.debug_path = debug_path
         if not os.path.exists(debug_path):
             os.makedirs(debug_path)
+        self.server_timelimit = timelimit
 
     def _killServer(self, server):
         if server is not None:
@@ -60,7 +60,7 @@ class TorcsFitnessEvaluation:
             ['python', 'run.py', '-p',
                 str(port), '-o', files['result_file'], '-m', 'NEAT', '-f', model_file],
             stdout=files['stdout'], stderr=files['stderr'], cwd=self.CLIENT_PATH, preexec_fn=os.setsid)
-        print('Started Client '+ str(client.pid))
+        print('Started Client ' + str(client.pid))
         return client
 
     def _startServer(self, configuration, stdout, stderr):
@@ -68,21 +68,22 @@ class TorcsFitnessEvaluation:
             print('Starting server')
             # '-r', os.path.join(self.DIR_PATH, configuration)
             server = subprocess.Popen(
-                ['time', 'torcs', '-nofuel', '-nolaptime','-r', os.path.join(self.DIR_PATH, configuration)],
+                ['time', 'torcs', '-nofuel', '-nolaptime', '-r',
+                    os.path.join(self.DIR_PATH, configuration)],
                 stdout=stdout,
                 stderr=stderr,
                 preexec_fn=os.setsid
             )
             print('Waiting for server to stop')
-            server.wait(timeout=self.SERVER_TIMEOUT)
+            server.wait(timeout=self.server_timelimit)
 
         except subprocess.TimeoutExpired:
             print('SERVER TIMED-OUT!')
-            return False,server
+            return False, server
         except:
             print('Ops! Something happened"')
             traceback.print_exc()
-            return False,server
+            return False, server
         return True, server
 
     def _openDebugFiles(self, base_path, folder):
@@ -110,9 +111,9 @@ class TorcsFitnessEvaluation:
         try:
             results = open(file_name, 'r')
             values = []
-            skip_header=True
+            skip_header = True
             for line in results.readlines():
-                if skip_header==True:
+                if skip_header == True:
                     skip_header = False
                     continue
                 # read the comma-separated values in the first line of the file
@@ -139,13 +140,15 @@ class TorcsFitnessEvaluation:
 
         for i, client in enumerate(self.clients):
             c = {}
-            model_file = self.debug_path + '/' + 'model_temp' + str(id) + '.pickle'
-            
+            model_file = self.debug_path + '/' + \
+                'model_temp' + str(id) + '.pickle'
+
             # dumping model to file so it can be used inside driver
             with open(model_file, 'wb') as f:
                 pickle.dump(clients_model[i], f)
 
-            c['files'] = self._openDebugFiles(self.debug_path, 'client' + str(id))
+            c['files'] = self._openDebugFiles(
+                self.debug_path, 'client' + str(id))
             c['client'] = self._startClient(
                 port=client['port'], model_file=model_file, files=c['files'])
             print('Results at', c['files']['result_file'])
@@ -158,8 +161,8 @@ class TorcsFitnessEvaluation:
             self._killServer(server)
         for client in clients_data:
                 # copyfile(client['model_file'], client['model_file'] + 'error')
-                self._killClient(client['client'])
-                self._closeDebugFiles(client['files'],current_time)
+            self._killClient(client['client'])
+            self._closeDebugFiles(client['files'], current_time)
 
         print('Simulation ended')
 
