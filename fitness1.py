@@ -1,6 +1,4 @@
 
 
-def fitness(time, timelimit, raced_distance, distance_from_start, damage, offroad_penalty, avg_speed):
-    distance = avg_speed * time / timelimit
-    print('\tEstimated Distance = ', distance)
-    return avg_speed + distance - 300 * offroad_penalty  # - 0.2 * damage
+def fitness(result, timelimit):
+    return 10*result['avg_speed'][-1] + result['raced_distance'][-1] - 300 * result['offroad_penalty'][-1] - 0.2 * result['damage'][-1]

@@ -64,9 +64,12 @@ if __name__ == '__main__':
     if args.model == 'RNN':
         from rnn_model import RNNModelSteering
         model = RNNModelSteering(args.f)
+        driver = Driver(model=model, logdata=False)
     elif args.model == 'NEAT':
         from neat_model import NeatModel
+        from driver_neat import DriverNeat
         model = NeatModel(args.model_file, args.output_file)
+        driver = DriverNeat(model=model,logdata=False)
     print(args.model,model)
         # switch log level:
     if args.v:
@@ -78,8 +81,6 @@ if __name__ == '__main__':
         level=level,
         format="%(asctime)s %(levelname)7s %(name)s %(message)s"
     )
-    driver = Driver(model=model, logdata=False)
-    print(driver)
     # start client loop:
     client = Client(driver=driver, hostname=args.hostname,port=args.port)
     client.run()

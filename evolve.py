@@ -12,6 +12,7 @@ import simulate
 # from neat import nn, population, statistics
 import neat
 import visualize
+import numpy as np
 # , neat.visualize
 
 FILE_PATH = os.path.realpath(__file__)
@@ -26,11 +27,18 @@ def getFitnessFce(path):
     return mod.fitness
 
 
-def defaultFitness(time, timelimit, raced_distance, distance_from_start, damage, offroad_penalty, avg_speed):
-    distance = avg_speed * time / timelimit
+def defaultFitness(results,timelimit):
+    distance = results['avg_speed'][-1] * results['time'][-1] / timelimit
     print('\tEstimated Distance = ', distance)
-    return avg_speed + distance - 300 * offroad_penalty  # - 0.2 * damage
+    # - 0.2 * damage
+    return results['avg_speed'][-1] + distance - 300 * results['offroad_penalty'][-1]
 
+def resultsToDict(results):
+    arr = np.array(results[1:])
+    res = {}
+    for i,name in enumerate(results[0]):
+        res[name] = arr[:,i].tolist()
+    return res
 
 def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit=None, fitness=None):
     if fitness is not None:
@@ -50,16 +58,17 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
         if values is None or len(values) == 0:
             fitness = -100
         else:
-            time, raced_distance, distance_from_start, damage, offroad_penalty, avg_speed = values[-1]
-            print('\tTotal time = ', time)
-            print('\tDistance from start = ', distance_from_start)
-            print('\tRaced Distance = ', raced_distance)
-            print('\tDamage = ', damage)
-            print('\tPenalty = ', offroad_penalty)
-            print('\tAvgSpeed = ', avg_speed)
-            fitness = fitness_fce(time, timelimit,
-                                  raced_distance, distance_from_start,
-                                  damage, offroad_penalty, avg_speed)
+            res = resultsToDict(values)
+            # print(res)
+            print('\tTotal time = ', res['time'][-1])
+            print('\tDistance from start = ', res['distance_from_start'][-1])
+            print('\tDistance from center = ', res['distance_from_center'][-1])
+            print('\tRaced Distance = ', res['raced_distance'][-1])
+            print('\tDamage = ', res['damage'][-1])
+            print('\tPenalty = ', res['offroad_penalty'][-1])
+            print('\tAvgSpeed = ', res['avg_speed'][-1])
+            print('\tLaps = ', res['laps'][-1])
+            fitness = fitness_fce(res,timelimit)
         print('\tFITNESS =', fitness, '\n')
         g.fitness = fitness
 
@@ -101,7 +110,7 @@ def run(output_dir, neat_config=None,
     # loading last checkpoint
     if checkpoint is not None:
         print('Loading from ', checkpoint)
-        pop = neat.checkpoint.restore_checkpoint(checkpoint)
+        pop = neat.checkpoint.Checkpointer.restore_checkpoint(checkpoint)
     # define reporting and checkpointing
     reporter_set = neat.reporting.ReporterSet()
     reporter_set.add(neat.checkpoint.Checkpointer(generation_interval=frequency,

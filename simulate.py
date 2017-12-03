@@ -28,6 +28,7 @@ class TorcsFitnessEvaluation:
     SIGTERMHUTDOWN_WAIT = 10
     RESULT_SAWING_WAIT = 1
     SHUTDOWN_WAIT = 3
+    TIME_FORMAT = "%d-%m-%Y-%H-%M-%S"
 
     def __init__(self, torcs_config, clients, debug_path="debug", timelimit=3):
         self.torcs_config = torcs_config
@@ -68,7 +69,7 @@ class TorcsFitnessEvaluation:
             print('Starting server')
             # '-r', os.path.join(self.DIR_PATH, configuration)
             server = subprocess.Popen(
-                ['time', 'torcs', '-nofuel', '-nolaptime', '-r',
+                ['torcs', '-nofuel', '-nolaptime', '-r',
                     os.path.join(self.DIR_PATH, configuration)],
                 stdout=stdout,
                 stderr=stderr,
@@ -103,18 +104,20 @@ class TorcsFitnessEvaluation:
         files['stdout'].close()
         files['stderr'].close()
 
-        copyfile(files['stdout_file'], files['stdout_file'] + str(time))
-        copyfile(files['stderr_file'], files['stderr_file'] + str(time))
-        copyfile(files['result_file'], files['result_file'] + str(time))
+        copyfile(files['stdout_file'], files['stdout_file'] + time)
+        copyfile(files['stderr_file'], files['stderr_file'] + time)
+        copyfile(files['result_file'], files['result_file'] + time)
 
     def _parseResultFile(self, file_name):
         try:
             results = open(file_name, 'r')
             values = []
-            skip_header = True
+            header = True
             for line in results.readlines():
-                if skip_header == True:
-                    skip_header = False
+                if header == True:
+                    header = False
+                    splited = line.strip().split(',')
+                    values.append(splited)
                     continue
                 # read the comma-separated values in the first line of the file
                 splited = [float(x) for x in line.split(',')]
@@ -130,7 +133,7 @@ class TorcsFitnessEvaluation:
         return values
 
     def evaluate(self, clients_model):
-        current_time = datetime.datetime.now().isoformat()
+        current_time = datetime.datetime.now().strftime(self.TIME_FORMAT)
         start_time = time.time()
         clients_data = []
         id = 1
