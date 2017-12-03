@@ -9,6 +9,8 @@ class DriverNeat:
     def __init__(self, model,logdata=True):
         self.data_logger = DataLogWriter() if logdata else None
         self.model = model
+        self.stuck_count = 0
+        self.unstucking= False
 
     @property
     def range_finder_angles(self):
@@ -35,8 +37,19 @@ class DriverNeat:
     def drive(self, carstate: State) -> Command:
         cmd = Command()
         self.model.predict(carstate)
-        cmd.steering = self.model.getSteering()
-        self.accelerate(carstate, max(0.1,self.model.getAcceleration()), cmd)
+        if self.isStuck(carstate):
+            print('stuck')
+            self.reverse(carstate, cmd)
+            self.unstucking=True
+        else:
+            # change gear from reverse after unstucking
+            if self.unstucking and carstate.gear <= 0:
+                print('unstuck')
+                carstate.gear = 1
+                self.unstucking = False
+
+            cmd.steering = self.model.getSteering()
+            self.accelerate(carstate, max(0.1,self.model.getAcceleration()),self.model.breaking, cmd)
 
         if self.data_logger:
             self.data_logger.log(carstate, cmd)
@@ -51,12 +64,30 @@ class DriverNeat:
 
         if not command.gear:
             command.gear = carstate.gear or 1
-    def accelerate(self, carstate, acceleration, command):
-
+    def accelerate(self, carstate, acceleration,brake, command):
+        # if brake > 0.8:
+        #     command.brake = 1
+        # else:
         if acceleration > 0:
             command.accelerator = acceleration
         else:
             command.brake = -1*acceleration
         command.gear = carstate.gear
         self.shift(carstate, command)
+
+    def isStuck(self, carstate):
+        if carstate.speed_x < 2 \
+                and abs(carstate.distance_from_center) > 0.95 \
+                and abs(carstate.angle) > 15\
+                and carstate.angle * carstate.distance_from_center < 0:
+            self.stuck_count += 1
+        else:
+            self.stuck_count = 0
+        return self.stuck_count > 100
+    def reverse(self, carstate, command):
+        command.accelerator = 1.0
+        command.gear = -1
+        command.brake = 0.0
+        command.clutch = 0.0
+        command.steering = -1*carstate.angle * 3.14159265359/(180.0 * 0.785398)
 

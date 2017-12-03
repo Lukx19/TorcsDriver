@@ -46,8 +46,9 @@ class NeatModel(Model):
             return
         output = self.net.activate(inputs)
         self.acceleration = output[0]
-        self.steering = output[1]
-        # self.breaking = output[2]
+        # using left and right steering as a separate output nodes
+        self.steering = output[1] - output[2]
+        self.breaking = output[3]
         self.predictions += 1
         if self._current_lap_time > state.current_lap_time:
             # we are in the new round
@@ -100,8 +101,8 @@ class NeatModel(Model):
             else:
                 array.append(state.distances_from_edge[j] / 200.0)
         array.append(state.distance_from_center)
-        # for j in range(4):
-        #     array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
-        # array.append(state.z - 0.36)
-        # array.append(state.speed_z / 10.0)
+        for j in range(4):
+            array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
+        array.append(state.z - 0.36)
+        array.append(state.speed_z / 10.0)
         return np.array(array)
