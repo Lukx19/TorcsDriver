@@ -20,7 +20,7 @@ class Driver:
     command within 10ms wall time.
     """
 
-    def __init__(self, logdata=True):
+    def __init__(self, model, logdata=True):
         self.steering_ctrl = CompositeController(
             ProportionalController(0.4),
             IntegrationController(0.2, integral_limit=1.5),
@@ -30,6 +30,7 @@ class Driver:
             ProportionalController(3.7),
         )
         self.data_logger = DataLogWriter() if logdata else None
+        self.test = model
 
     @property
     def range_finder_angles(self):
@@ -62,6 +63,7 @@ class Driver:
         drivers) successfully driven along the race track.
         """
         command = Command()
+        self.test.predict(carstate)
         self.steer(carstate, 0.0, command)
 
         # ACC_LATERAL_MAX = 6400 * 5
@@ -107,7 +109,10 @@ class Driver:
             command.gear = carstate.gear or 1
 
     def steer(self, carstate, target_track_pos, command):
-        steering_error = target_track_pos - carstate.distance_from_center
+        #steering_error = 0.0 - carstate.distance_from_center
+        steering_error = self.test.getSteering()
+        #print('steering error:')
+        #print(steering_error)
         command.steering = self.steering_ctrl.control(
             steering_error,
             carstate.current_lap_time

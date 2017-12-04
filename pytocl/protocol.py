@@ -29,7 +29,7 @@ class Client:
         socket (socket): UDP socket to server.
     """
 
-    def __init__(self, hostname='127.0.0.1', port=3001, *,
+    def __init__(self, hostname='localhost', port=3001, *,
                  driver=None, serializer=None):
         self.hostaddr = (hostname, port)
         self.driver = driver or Driver()
