@@ -17,7 +17,8 @@ class NeatModel(Model):
         self._last_laps_accumulated_time = 0
         self.last_distance_from_start = 0
         self.acc_distance_from_start = 0
-        self.laps = 0
+        self.laps = -1
+        self.cumul_dist_from_center = 0
 
         self.results = []
         self._max_speed = max_speed
@@ -76,6 +77,7 @@ class NeatModel(Model):
             state.speed_x, state.speed_y, state.angle)
 
         self.cumul_speed += projected_speed
+        self.cumul_dist_from_center += state.distance_from_center
 
         if self.predictions % 100 == 0:
             self.results.append([
@@ -83,7 +85,7 @@ class NeatModel(Model):
                 state.distance_raced,
                 self.acc_distance_from_start + distance,
                 state.damage,
-                state.distance_from_center,
+                self.cumul_dist_from_center / self.predictions,
                 state.angle / 180,
                 math.sqrt(self.offroad_penalty / self.predictions),
                 self.cumul_speed / self.predictions,
