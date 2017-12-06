@@ -57,6 +57,12 @@ if __name__ == '__main__':
         type=int,
         default=3001
     )
+    parser.add_argument(
+        '-n',
+        '--ff_model',
+        help='Feed forward model file',
+        default=None
+    )
     parser.add_argument('-v', help='Debug log level.', action='store_true')
     args = parser.parse_args()
     print(args.model)
@@ -68,10 +74,11 @@ if __name__ == '__main__':
     elif args.model == 'NEAT':
         from neat_model import NeatModel
         from driver_neat import DriverNeat
-        model = NeatModel(args.model_file, args.output_file)
-        driver = DriverNeat(model=model,logdata=False)
-    print(args.model,model)
-        # switch log level:
+        model = NeatModel(model_file=args.model_file,
+                          ff_model_file=args.ff_model, result_file=args.output_file)
+        driver = DriverNeat(model=model, logdata=False)
+    print(args.model, model)
+    # switch log level:
     if args.v:
         level = logging.DEBUG
     else:
@@ -82,5 +89,5 @@ if __name__ == '__main__':
         format="%(asctime)s %(levelname)7s %(name)s %(message)s"
     )
     # start client loop:
-    client = Client(driver=driver, hostname=args.hostname,port=args.port)
+    client = Client(driver=driver, hostname=args.hostname, port=args.port)
     client.run()

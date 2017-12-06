@@ -55,11 +55,11 @@ class TorcsFitnessEvaluation:
             os.killpg(os.getpgid(client.pid), signal.SIGKILL)
             time.sleep(self.SHUTDOWN_WAIT)
 
-    def _startClient(self, port, files, model_file):
+    def _startClient(self, port, files, model_file, ff_model):
         #'-o', results_file
         client = subprocess.Popen(
             ['python', 'run.py', '-p',
-                str(port), '-o', files['result_file'], '-m', 'NEAT', '-f', model_file],
+                str(port), '-o', files['result_file'], '-m', 'NEAT', '-f', model_file, '--ff_model', ff_model],
             stdout=files['stdout'], stderr=files['stderr'], cwd=self.CLIENT_PATH, preexec_fn=os.setsid)
         print('Started Client ' + str(client.pid))
         return client
@@ -69,7 +69,7 @@ class TorcsFitnessEvaluation:
             print('Starting server')
             # '-r', os.path.join(self.DIR_PATH, configuration)
             server = subprocess.Popen(
-                ['torcs', '-nofuel', '-nolaptime', '-r',
+                ['torcs', '-nofuel', '-nolaptime', '-nodamage', '-r',
                     os.path.join(self.DIR_PATH, configuration)],
                 stdout=stdout,
                 stderr=stderr,
@@ -153,7 +153,7 @@ class TorcsFitnessEvaluation:
             c['files'] = self._openDebugFiles(
                 self.debug_path, 'client' + str(id))
             c['client'] = self._startClient(
-                port=client['port'], model_file=model_file, files=c['files'])
+                port=client['port'], model_file=model_file, files=c['files'], ff_model=client['ff_model'])
             print('Results at', c['files']['result_file'])
             id += 1
             clients_data.append(c)
@@ -173,7 +173,8 @@ class TorcsFitnessEvaluation:
 
         # time.sleep(30)
 
-        # if the result file hasn't been created yet, try 10 times waiting 'RESULT_SAWING_WAIT' seconds between each attempt
+        # if the result file hasn't been created yet, try 10 times waiting
+        # 'RESULT_SAWING_WAIT' seconds between each attempt
 
         results = []
         for client in clients_data:
@@ -190,7 +191,8 @@ class TorcsFitnessEvaluation:
 
 #     print('Cleaning directories')
 
-#     for zippath in glob.iglob(os.path.join(DIR_PATH, results_path, 'results_*')):
+# for zippath in glob.iglob(os.path.join(DIR_PATH, results_path,
+# 'results_*')):
 
 #         os.remove(zippath)
 

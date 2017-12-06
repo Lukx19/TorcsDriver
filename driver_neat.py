@@ -20,8 +20,7 @@ class DriverNeat:
         of range finders. During regular execution, a 19-valued vector of track
         distances in these directions is returned in ``state.State.tracks``.
         """
-        return -90, -75, -60, -45, -30, -20, -15, -10, -5, 0, 5, 10, 15, 20, \
-            30, 45, 60, 75, 90
+        return list(range(-90,91,10))
 
     def on_shutdown(self):
         """
@@ -84,6 +83,7 @@ class DriverNeat:
         else:
             self.stuck_count = 0
         return self.stuck_count > 100
+
     def reverse(self, carstate, command):
         command.accelerator = 1.0
         command.gear = -1

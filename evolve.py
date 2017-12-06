@@ -27,20 +27,22 @@ def getFitnessFce(path):
     return mod.fitness
 
 
-def defaultFitness(results,timelimit):
+def defaultFitness(results, timelimit):
     distance = results['avg_speed'][-1] * results['time'][-1] / timelimit
     print('\tEstimated Distance = ', distance)
     # - 0.2 * damage
     return results['avg_speed'][-1] + distance - 300 * results['offroad_penalty'][-1]
 
+
 def resultsToDict(results):
     arr = np.array(results[1:])
     res = {}
-    for i,name in enumerate(results[0]):
-        res[name] = arr[:,i].tolist()
+    for i, name in enumerate(results[0]):
+        res[name] = arr[:, i].tolist()
     return res
 
-def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit=None, fitness=None):
+
+def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit=None, fitness=None, cars=1):
     if fitness is not None:
         fitness_fce = getFitnessFce(fitness)
     else:
@@ -52,25 +54,38 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
     for i, (idx, g) in enumerate(genomes):
         print('evaluating', i + 1, '/', tot, '\n')
         net = neat.nn.recurrent.RecurrentNetwork.create(g, config)
-        # run the simulation to evaluate the model
-        values = evaluate_function(net)[0]
-        # print(values, len(values))
-        if values is None or len(values) == 0:
-            fitness = -100
-        else:
-            res = resultsToDict(values)
-            # print(res)
-            print('\tTotal time = ', res['time'][-1])
-            print('\tDistance from start = ', res['distance_from_start'][-1])
-            print('\tDistance from center = ', res['distance_from_center'][-1])
-            print('\tRaced Distance = ', res['raced_distance'][-1])
-            print('\tDamage = ', res['damage'][-1])
-            print('\tPenalty = ', res['offroad_penalty'][-1])
-            print('\tAvgSpeed = ', res['avg_speed'][-1])
-            print('\tLaps = ', res['laps'][-1])
-            fitness = fitness_fce(res,timelimit)
-        print('\tFITNESS =', fitness, '\n')
-        g.fitness = fitness
+
+        # every car gets the same model
+        nets = []
+        for car_id in range(cars):
+            nets.append(net)
+
+        total_fitness = 0
+        for car_id in range(cars):
+            print("*****************car number: ", car_id)
+            # run the simulation to evaluate the model
+            values = evaluate_function(nets)[0]
+            # print(values, len(values))
+            if values is None or len(values) == 0:
+                fitness = -100
+            else:
+                res = resultsToDict(values)
+                # print(res)
+                print('\tTotal time = ', res['time'][-1])
+                print('\tDistance from start = ',
+                      res['distance_from_start'][-1])
+                print('\tDistance from center = ',
+                      res['distance_from_center'][-1])
+                print('\tRaced Distance = ', res['raced_distance'][-1])
+                print('\tDamage = ', res['damage'][-1])
+                print('\tPenalty = ', res['offroad_penalty'][-1])
+                print('\tAvgSpeed = ', res['avg_speed'][-1])
+                print('\tLaps = ', res['laps'][-1])
+                print('\tCar Hits = ', res['car_hit_penalty'][-1])
+                fitness = fitness_fce(res, timelimit)
+            print('\tFITNESS =', fitness, '\n')
+            total_fitness += fitness
+        g.fitness = total_fitness / cars
 
     print('\nfinished evaluation\n\n')
 
@@ -93,10 +108,18 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
 
 def run(output_dir, neat_config=None,
         generations=20, port=3001, frequency=None, unstuck=False,
-        fitness=None, checkpoint=None, configuration=None, timelimit=None):
+        fitness=None, checkpoint=None, configuration=None, timelimit=None, two_cars=None, model=None):
     clients = [{
         'port': port,
+        'ff_model': model,
     }]
+    cars_on_track = 1
+    if two_cars:
+        clients.append({
+            'port': port+1,
+            'ff_model': model,
+        })
+        cars_on_track = 2
     print(str(clients))
     sim = simulate.TorcsFitnessEvaluation(
         torcs_config=configuration, clients=clients, debug_path=output_dir, timelimit=timelimit)
@@ -123,10 +146,11 @@ def run(output_dir, neat_config=None,
     def fitness_fce(genomes, config): return evalGenomes(
         genomes=genomes,
         config=config,
-        evaluate_function=lambda model: sim.evaluate([model]),
+        evaluate_function=lambda models: sim.evaluate(models),
         cleaner=None,
         timelimit=timelimit,
-        fitness=fitness,)
+        fitness=fitness,
+        cars=cars_on_track,)
     winner = pop.run(fitness_function=fitness_fce, n=generations)
 
     # print('Number of evaluations: {0}'.format(pop.total_evaluations))
@@ -141,7 +165,8 @@ def run(output_dir, neat_config=None,
     visualize.draw_net(config, winner, view=False, filename=os.path.join(
         output_dir, "nn_winner-enabled"), show_disabled=False)
     # visualize.draw_net(config, winner, view=False, filename=os.path.join(
-    #     output_dir, "nn_winner-enabled-pruned"), show_disabled=False, prune_unused=True)
+    # output_dir, "nn_winner-enabled-pruned"), show_disabled=False,
+    # prune_unused=True)
 
     visualize.plot_stats(stats, filename=os.path.join(
         output_dir, 'avg_fitness.svg'))
@@ -241,6 +266,20 @@ if __name__ == '__main__':
         help='Timelimit for the race',
         type=int,
         default=3
+    )
+
+    parser.add_argument(
+        '-C',
+        '--two_cars',
+        help='Evolve two cars at the same time',
+        default=False
+    )
+
+    parser.add_argument(
+        '-M',
+        '--model',
+        help='Model of feed forward network',
+        default="ff.pickle"
     )
     args, _ = parser.parse_known_args()
     run(**args.__dict__)
