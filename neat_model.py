@@ -128,19 +128,19 @@ class NeatModel(Model):
             array.append(0)
             array.append(0)
             array.append(0)
-        array.append(state.angle / 180.0)
-        array.append(state.speed_x / self._max_speed)
-        array.append(state.speed_y / self._max_speed)
-        array.append(state.speed_z / 10.0)
+        # array.append(state.angle / 180.0)
+        # array.append(state.speed_x / self._max_speed)
+        # array.append(state.speed_y / self._max_speed)
+        # array.append(state.speed_z / 10.0)
         for j in [7, 8, 9, 10, 11, 12]:
             if math.fabs(state.distance_from_center) > 1 or state.distances_from_edge[j] < 0:
                 array.append(-1)
             else:
                 array.append(state.distances_from_edge[j] / 200.0)
-        array.append(state.distance_from_center)
-        for j in range(4):
-            array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
-        array.append(state.z - 0.36)
+        # array.append(state.distance_from_center)
+        # for j in range(4):
+        #     array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
+        # array.append(state.z - 0.36)
 
         for j in self.opponents_array:
             array.append(state.opponents[j] / 200.0)

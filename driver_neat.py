@@ -93,21 +93,21 @@ class DriverNeat:
             command.gear = carstate.gear or 1
 
     def accelerate(self, carstate, acceleration, brake, command):
-        # if brake > 0.8:
-        #     command.brake = 1
+        if brake > 0.8:
+            command.brake = 1
         # else:
-        if acceleration > 0:
-            command.accelerator = acceleration
-        else:
-            command.brake = -1*acceleration
+        # if acceleration > 0:
+        command.accelerator = acceleration
+        # else:
+        # command.brake = -1*acceleration
         command.gear = carstate.gear
         self.shift(carstate, command)
 
     def isStuck(self, carstate):
         if carstate.speed_x < 2 \
                 and abs(carstate.distance_from_center) > 0.95 \
-                and abs(carstate.angle) > 15\
-                and carstate.angle * carstate.distance_from_center < 0:
+                and abs(carstate.angle) > 15:
+                # and carstate.angle * carstate.distance_from_center < 0:
             self.stuck_count += 1
         else:
             self.stuck_count = 0
@@ -118,7 +118,10 @@ class DriverNeat:
         command.gear = -1
         command.brake = 0.0
         command.clutch = 0.0
-        command.steering = -1*carstate.angle * 3.14159265359/(180.0 * 0.785398)
+        if carstate.angle > 0:
+            command.steering = -1
+        else:
+            command.steering = 1
 
     def loadSharedState(self):
         if not os.path.isfile(self.in_comm):

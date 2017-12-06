@@ -61,15 +61,15 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
             nets.append(net)
 
         total_fitness = 0
+        # run the simulation to evaluate the model
+        values = evaluate_function(nets)
         for car_id in range(cars):
             print("*****************car number: ", car_id)
-            # run the simulation to evaluate the model
-            values = evaluate_function(nets)[0]
             # print(values, len(values))
-            if values is None or len(values) == 0:
+            if values[car_id] is None or len(values[car_id]) == 0:
                 fitness = -100
             else:
-                res = resultsToDict(values)
+                res = resultsToDict(values[car_id])
                 # print(res)
                 print('\tTotal time = ', res['time'][-1])
                 print('\tDistance from start = ',
@@ -83,9 +83,9 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
                 print('\tLaps = ', res['laps'][-1])
                 print('\tCar Hits = ', res['car_hit_penalty'][-1])
                 fitness = fitness_fce(res, timelimit)
-            print('\tFITNESS =', fitness, '\n')
             total_fitness += fitness
         g.fitness = total_fitness / cars
+        print('FITNESS =', g.fitness, '\n')
 
     print('\nfinished evaluation\n\n')
 
@@ -272,7 +272,8 @@ if __name__ == '__main__':
         '-C',
         '--two_cars',
         help='Evolve two cars at the same time',
-        default=False
+        default=False,
+        action='store_true'
     )
 
     parser.add_argument(
