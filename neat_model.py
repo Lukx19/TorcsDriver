@@ -59,7 +59,7 @@ class NeatModel(Model):
                 return True
         return False
 
-    def predict(self, state):
+    def predict(self, state, old_state=None):
         inputs = self.stateToInput(state)
         if np.isnan(inputs).any():
             print('#####################  NaN inputs')
