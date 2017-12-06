@@ -61,6 +61,7 @@ class NeatModel(Model):
 
     def predict(self, state, old_state=None):
         inputs = self.stateToInput(state)
+        # print(inputs[0:3])
         if np.isnan(inputs).any():
             print('#####################  NaN inputs')
             return
@@ -122,7 +123,11 @@ class NeatModel(Model):
             self.ff_model.predict(state)
             array.append(self.ff_model.getSteering())
             array.append(self.ff_model.getBreak())
-            array.append(self.ff_model.getAcceration())
+            array.append(self.ff_model.getAcceleration())
+        else:
+            array.append(0)
+            array.append(0)
+            array.append(0)
         array.append(state.angle / 180.0)
         array.append(state.speed_x / self._max_speed)
         array.append(state.speed_y / self._max_speed)

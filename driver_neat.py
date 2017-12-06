@@ -27,8 +27,8 @@ class DriverNeat:
         else:
             self.out_comm = "out1.com"
             self.in_comm = "out2.com"
-        with open(self.out_comm, 'w') as f:
-            f.write("I am first")
+        with open(self.out_comm, 'wb') as f:
+            pickle.dump(self.my_state, f)
 
     @property
     def range_finder_angles(self):
@@ -53,14 +53,15 @@ class DriverNeat:
 
     def drive(self, carstate: State) -> Command:
         cmd = Command()
-        shared_state = self.loadSharedState()
-        if shared_state['pos'] < self.my_state['pos']:
+        # shared_state = self.loadSharedState()
+        shared_state = None
+        if shared_state is not None and shared_state['pos'] < self.my_state['pos']:
             self.model.predict(carstate, shared_state)
         else:
             self.model.predict(carstate, self.my_state)
         self.my_state['pos'] = carstate.race_position
         self.my_state['steering'] = self.model.getSteering()
-        self.saveSharedState(self.my_state)
+        # self.saveSharedState(self.my_state)
 
         if self.isStuck(carstate):
             print('stuck')
@@ -120,9 +121,12 @@ class DriverNeat:
         command.steering = -1*carstate.angle * 3.14159265359/(180.0 * 0.785398)
 
     def loadSharedState(self):
+        if not os.path.isfile(self.in_comm):
+            return None
+
         dict_state = None
         try:
-            with open(self.in_comm, 'r') as f:
+            with open(self.in_comm, 'rb') as f:
                 dict_state = pickle.load(f)
         except:
             dict_state = None
@@ -131,7 +135,7 @@ class DriverNeat:
 
     def saveSharedState(self, dict_state):
         try:
-            with open(self.in_comm, 'w') as f:
+            with open(self.in_comm, 'wb') as f:
                 pickle.dump(dict_state, f)
         except:
             dict_state = None

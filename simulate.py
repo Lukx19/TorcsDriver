@@ -44,16 +44,18 @@ class TorcsFitnessEvaluation:
         os.killpg(os.getpgid(server.pid), signal.SIGTERM)
 
     def _killClient(self, client):
-        print('Terminating client' + str(client.pid))
-        # Try to be gentle
-        os.killpg(os.getpgid(client.pid), signal.SIGTERM)
-        # give it some time to stop gracefully
-        client.wait(timeout=self.SHUTDOWN_WAIT)
-        # if it is still running, kill it
-        if client.poll() is None:
+        try:
+            print('Terminating client' + str(client.pid))
+            # Try to be gentle
+            os.killpg(os.getpgid(client.pid), signal.SIGTERM)
+            # give it some time to stop gracefully
+            client.wait(timeout=self.SHUTDOWN_WAIT)
+            # if it is still running, kill it
+        except:
             print('\tTrying to hard kill client')
             os.killpg(os.getpgid(client.pid), signal.SIGKILL)
-            time.sleep(self.SHUTDOWN_WAIT)
+        while client.poll() is None:
+            os.killpg(os.getpgid(client.pid), signal.SIGKILL)
 
     def _startClient(self, port, files, model_file, ff_model):
         #'-o', results_file
