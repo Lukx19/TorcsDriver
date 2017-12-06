@@ -2,7 +2,7 @@ import abc
 class Model:
     steering = 0
     breaking = 0
-    #acceleration = 1
+    acceleration = 1
 
     def getSteering(self)->float:
         """ return steering value in range [-1,1]"""
@@ -11,7 +11,6 @@ class Model:
     def getBreak(self)->int:
         """ return breaking value [0,1]"""
         return self.breaking
-
 
     def getAcceleration(self)->float:
         """ return Acceleration [0,]"""
