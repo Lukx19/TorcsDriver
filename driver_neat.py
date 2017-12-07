@@ -17,6 +17,12 @@ class DriverNeat:
         self.model = model
         self.stuck_count = 0
         self.unstucking = False
+        self.reverse_counter = 0
+
+        self.last_raced_dist = 0
+        self.backwards_count = 0
+        self.turning180 = False
+        self.turn180_count = 0
 
         self.my_state = {'pos': 0, 'steering': 0}
 
@@ -61,25 +67,38 @@ class DriverNeat:
             self.model.predict(carstate, self.my_state)
         self.my_state['pos'] = carstate.race_position
         self.my_state['steering'] = self.model.getSteering()
-        # self.saveSharedState(self.my_state)
-
-        if self.isStuck(carstate):
+        if self.isStuck(carstate) or self.reverse_counter > 0:
             print('stuck')
+            if self.reverse_counter == 0:
+                self.reverse_counter = 10
             self.reverse(carstate, cmd)
             self.unstucking = True
-        else:
-            # change gear from reverse after unstucking
-            if self.unstucking and carstate.gear <= 0:
-                print('unstuck')
-                carstate.gear = 1
-                self.unstucking = False
+            self.reverse_counter -= 1
+            if (abs(carstate.angle) < 15
+                    or abs(carstate.distance_from_center) < 0.2):
+                self.reverse_counter == 0
+        elif (self.isGoingBack(carstate) or self.turn180_count > 0):
+            print("backwards")
+            self.turn180(carstate, cmd)
+            if self.turn180_count == 0:
+                self.turn180_count = 30
+            self.turn180_count -= 1
 
-            cmd.steering = self.model.getSteering()
-            self.accelerate(carstate, max(
-                0.1, self.model.getAcceleration()), self.model.breaking, cmd)
+            if abs(carstate.angle) < 15:
+                self.turn180_count = 0
+        else:
+            if carstate.gear < 0:
+                cmd.gear = 0
+                cmd.brake = 1
+            else:
+                self.unstucking = False
+                cmd.steering = self.model.getSteering()
+                self.accelerate(carstate, max(
+                    0.1, self.model.getAcceleration()), self.model.getBreak(), cmd)
 
         if self.data_logger:
             self.data_logger.log(carstate, cmd)
+        self.last_raced_dist = carstate.distance_raced
         return cmd
 
     def shift(self, carstate, command):
@@ -93,7 +112,7 @@ class DriverNeat:
             command.gear = carstate.gear or 1
 
     def accelerate(self, carstate, acceleration, brake, command):
-        if brake > 0.8:
+        if brake > 0.4:
             command.brake = 1
         # else:
         # if acceleration > 0:
@@ -106,12 +125,21 @@ class DriverNeat:
     def isStuck(self, carstate):
         if carstate.speed_x < 2 \
                 and abs(carstate.distance_from_center) > 0.95 \
-                and abs(carstate.angle) > 15:
-                # and carstate.angle * carstate.distance_from_center < 0:
+                and abs(carstate.angle) > 15 \
+                and carstate.angle * carstate.distance_from_center < 0:
             self.stuck_count += 1
         else:
             self.stuck_count = 0
-        return self.stuck_count > 100
+        return self.stuck_count > 10
+
+    def isGoingBack(self, carstate):
+        if (carstate.distance_raced < self.last_raced_dist
+                and carstate.gear > 0 and abs(carstate.angle) > 150):
+            self.backwards_count += 1
+        else:
+            self.backwards_count = 0
+        return self.backwards_count > 50
+        # return False
 
     def reverse(self, carstate, command):
         command.accelerator = 1.0
@@ -122,6 +150,14 @@ class DriverNeat:
             command.steering = -1
         else:
             command.steering = 1
+
+    def turn180(self, carstate, command):
+        command.accelerator = 0.2
+        # command.gear = 2
+        if carstate.angle > 0:
+            command.steering = 1
+        else:
+            command.steering = -1
 
     def loadSharedState(self):
         if not os.path.isfile(self.in_comm):

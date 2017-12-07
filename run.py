@@ -61,7 +61,7 @@ if __name__ == '__main__':
         '-n',
         '--ff_model',
         help='Feed forward model file',
-        default=None
+        default="Weights/dim8-sig-sensors-front-side-hidden200/"
     )
     parser.add_argument('-v', help='Debug log level.', action='store_true')
     args = parser.parse_args()

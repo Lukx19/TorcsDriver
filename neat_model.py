@@ -2,6 +2,7 @@ from model import Model
 import numpy as np
 import pickle
 import math
+from rnn_model import RNNModelSteering
 
 
 class NeatModel(Model):
@@ -12,10 +13,10 @@ class NeatModel(Model):
             self.net = pickle.load(f)
             self.net.reset()
 
-        self.ff_model = None
-        if ff_model_file is not None:
-            with open(ff_model_file, 'rb') as f:
-                self.ff_model = pickle.load(f)
+        self.ff_model = RNNModelSteering(ff_model_file)
+        # if ff_model_file is not None:
+        #     with open(ff_model_file, 'rb') as f:
+        #         self.ff_model = pickle.load(f)
 
         self.result_file = result_file
         self.predictions = 0
@@ -55,12 +56,15 @@ class NeatModel(Model):
     def _isHittingCar(self, state):
         for i in self.opponents_array:
             # opponent is one meter or less to our car. This means we hit him.
-            if state.opponents[i] < 1:
+            if state.opponents[i] < 9:
                 return True
         return False
 
     def predict(self, state, old_state=None):
         inputs = self.stateToInput(state)
+        # self.acceleration = inputs[2]
+        # self.steering = inputs[0]
+        # self.breaking = inputs[1]
         # print(inputs[0:3])
         if np.isnan(inputs).any():
             print('#####################  NaN inputs')
@@ -68,8 +72,8 @@ class NeatModel(Model):
         output = self.net.activate(inputs)
         self.acceleration = output[0]
         # using left and right steering as a separate output nodes
-        self.steering = output[1] - output[2]
-        self.breaking = output[3]
+        self.steering = output[1]
+        self.breaking = output[2]
         self.predictions += 1
         if self._current_lap_time > state.current_lap_time:
             # we are in the new round
@@ -101,6 +105,7 @@ class NeatModel(Model):
         self.cumul_dist_from_center += state.distance_from_center
 
         if self._isHittingCar(state):
+            print("hit")
             self.car_hit_penalty += 1
 
         if self.predictions % 100 == 0:
@@ -128,18 +133,18 @@ class NeatModel(Model):
             array.append(0)
             array.append(0)
             array.append(0)
-        # array.append(state.angle / 180.0)
+        array.append(state.angle / 180.0)
         # array.append(state.speed_x / self._max_speed)
         # array.append(state.speed_y / self._max_speed)
         # array.append(state.speed_z / 10.0)
-        for j in [7, 8, 9, 10, 11, 12]:
-            if math.fabs(state.distance_from_center) > 1 or state.distances_from_edge[j] < 0:
-                array.append(-1)
-            else:
-                array.append(state.distances_from_edge[j] / 200.0)
-        # array.append(state.distance_from_center)
-        # for j in range(4):
-        #     array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
+        # for j in [7, 8, 9, 10, 11, 12]:
+        #     if math.fabs(state.distance_from_center) > 1 or state.distances_from_edge[j] < 0:
+        #         array.append(-1)
+        #     else:
+        #         array.append(state.distances_from_edge[j] / 200.0)
+        array.append(state.distance_from_center)
+        for j in range(4):
+            array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
         # array.append(state.z - 0.36)
 
         for j in self.opponents_array:

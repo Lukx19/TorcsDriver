@@ -280,7 +280,7 @@ if __name__ == '__main__':
         '-M',
         '--model',
         help='Model of feed forward network',
-        default="ff.pickle"
+        default="Weights/dim8-sig-sensors-front-side-hidden200/"
     )
     args, _ = parser.parse_known_args()
     run(**args.__dict__)
