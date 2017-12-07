@@ -62,31 +62,15 @@ class NeatModel(Model):
 
     def predict(self, state, old_state=None):
         inputs = self.stateToInput(state)
-        if abs(state.distance_from_center) > 0.9:
-            self.acceleration = inputs[2] / 5
-        else:
-            self.acceleration = inputs[2]
-        if state.distance_from_center >= 1:
-            self.steering = -1
-            # self.breaking = 1
-            print("right", state.distance_from_center)
-        elif state.distance_from_center <= -1:
-            self.steering = 1
-            # self.breaking = 1
-            print("left", state.distance_from_center)
-        else:
-            self.steering = inputs[0]
-            self.breaking = inputs[1]
-
-        # print(inputs[0:3])
+        # print(inputs[0:4])
         if np.isnan(inputs).any():
             print('#####################  NaN inputs')
             return
-        # output = self.net.activate(inputs)
-        # self.acceleration = output[0]
-        # # using left and right steering as a separate output nodes
-        # self.steering = output[1]
-        # self.breaking = output[2]
+        output = self.net.activate(inputs)
+        self.acceleration = output[3]
+        # using left and right steering as a separate output nodes
+        self.steering = output[1] - output[0]
+        self.breaking = output[2]
         self.predictions += 1
         if self._current_lap_time > state.current_lap_time:
             # we are in the new round
@@ -139,9 +123,32 @@ class NeatModel(Model):
         array = []
         if self.ff_model is not None:
             self.ff_model.predict(state)
-            array.append(self.ff_model.getSteering())
+            # clamping numerically unstable steering
+            steer = 0
+            if self.ff_model.getSteering() > 1:
+                steer = 1
+            elif self.ff_model.getSteering() < -1:
+                steer = -1
+            else:
+                steer = self.ff_model.getSteering()
+
+            # clamping acceleration
+            accel = 0
+            if self.ff_model.getAcceleration() > 1:
+                accel = 1
+            elif self.ff_model.getAcceleration() < 0:
+                accel = 0
+            else:
+                accel = self.ff_model.getAcceleration()
+
+            if steer > 0:
+                array.append(steer)
+                array.append(0)
+            else:
+                array.append(0)
+                array.append(-steer)
             array.append(self.ff_model.getBreak())
-            array.append(self.ff_model.getAcceleration())
+            array.append(accel)
         else:
             array.append(0)
             array.append(0)

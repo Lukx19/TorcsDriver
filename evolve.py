@@ -42,6 +42,14 @@ def resultsToDict(results):
     return res
 
 
+def addConnection(genom, config, from_node, to_node):
+    connection = neat.DefaultGenome.create_connection(
+        config, from_node, to_node)
+    connection.weight = config.weight_max_value
+    connection.enabled = True
+    genom.connections[connection.key] = connection
+
+
 def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit=None, fitness=None, cars=1):
     if fitness is not None:
         fitness_fce = getFitnessFce(fitness)
@@ -52,6 +60,10 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
     # print(genomes)
     # evaluate the genotypes one by one
     for i, (idx, g) in enumerate(genomes):
+        addConnection(g, config.genome_config, -1, 0)
+        addConnection(g, config.genome_config, -2, 1)
+        addConnection(g, config.genome_config, -2, 2)
+        addConnection(g, config.genome_config, -3, 3)
         print('evaluating', i + 1, '/', tot, '\n')
         net = neat.nn.recurrent.RecurrentNetwork.create(g, config)
 
@@ -86,6 +98,7 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
             total_fitness += fitness
         g.fitness = total_fitness / cars
         print('FITNESS =', g.fitness, '\n')
+        # print(str(g))
 
     print('\nfinished evaluation\n\n')
 
