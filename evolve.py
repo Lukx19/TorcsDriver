@@ -106,7 +106,7 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
             total_fitness += fitness
         g.fitness = total_fitness / cars
         print('FITNESS =', g.fitness, '\n')
-        print(str(g))
+        # print(str(g))
 
     print('\nfinished evaluation\n\n')
 
