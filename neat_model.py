@@ -62,16 +62,18 @@ class NeatModel(Model):
 
     def predict(self, state, old_state=None):
         inputs = self.stateToInput(state)
-        # print(inputs[0:4])
+
         if np.isnan(inputs).any():
             print('#####################  NaN inputs')
             return
         output = self.net.activate(inputs)
         self.acceleration = output[3]
         # using left and right steering as a separate output nodes
-        self.steering = output[1] - output[0]
+        self.steering = output[0] - output[1]
         self.breaking = output[2]
+
         self.predictions += 1
+
         if self._current_lap_time > state.current_lap_time:
             # we are in the new round
             self.laps += 1
@@ -140,7 +142,6 @@ class NeatModel(Model):
                 accel = 0
             else:
                 accel = self.ff_model.getAcceleration()
-
             if steer > 0:
                 array.append(steer)
                 array.append(0)

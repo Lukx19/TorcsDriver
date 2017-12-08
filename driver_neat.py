@@ -81,7 +81,7 @@ class DriverNeat:
             print("backwards")
             self.turn180(carstate, cmd)
             if self.turn180_count == 0:
-                self.turn180_count = 30
+                self.turn180_count = 60
             self.turn180_count -= 1
 
             if abs(carstate.angle) < 15:

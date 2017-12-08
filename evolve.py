@@ -50,6 +50,13 @@ def addConnection(genom, config, from_node, to_node):
     genom.connections[connection.key] = connection
 
 
+def setOutputLayerParams(genom, config):
+    for node_key in config.output_keys:
+        genom.nodes[node_key].bias = 0
+        genom.nodes[node_key].response = 1
+        genom.nodes[0].activation = 'identity'
+
+
 def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit=None, fitness=None, cars=1):
     if fitness is not None:
         fitness_fce = getFitnessFce(fitness)
@@ -62,8 +69,9 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
     for i, (idx, g) in enumerate(genomes):
         addConnection(g, config.genome_config, -1, 0)
         addConnection(g, config.genome_config, -2, 1)
-        addConnection(g, config.genome_config, -2, 2)
-        addConnection(g, config.genome_config, -3, 3)
+        addConnection(g, config.genome_config, -3, 2)
+        addConnection(g, config.genome_config, -4, 3)
+        setOutputLayerParams(g, config.genome_config)
         print('evaluating', i + 1, '/', tot, '\n')
         net = neat.nn.recurrent.RecurrentNetwork.create(g, config)
 
@@ -98,7 +106,7 @@ def evalGenomes(genomes, config, evaluate_function=None, cleaner=None, timelimit
             total_fitness += fitness
         g.fitness = total_fitness / cars
         print('FITNESS =', g.fitness, '\n')
-        # print(str(g))
+        print(str(g))
 
     print('\nfinished evaluation\n\n')
 
