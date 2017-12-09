@@ -69,7 +69,7 @@ if __name__ == '__main__':
     model_type = args.model
     if args.model == 'RNN':
         from rnn_model import RNNModelSteering
-        model = RNNModelSteering(args.f)
+        model = RNNModelSteering(args.model_file)
         driver = Driver(model=model, logdata=False)
     elif args.model == 'NEAT':
         from neat_model import NeatModel
