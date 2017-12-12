@@ -68,6 +68,8 @@ class NeatModel(Model):
             return
         output = self.net.activate(inputs)
         self.acceleration = output[3]
+        if state.gear == 1:
+            self.acceleration *= 2
         # using left and right steering as a separate output nodes
         self.steering = output[0] - output[1]
         self.breaking = output[2]
@@ -154,20 +156,33 @@ class NeatModel(Model):
             array.append(0)
             array.append(0)
             array.append(0)
-        array.append(state.angle / 180.0)
+        angle = state.angle / 180.0
+        if angle > 0:
+            array.append(angle)
+            array.append(0)
+        else:
+            array.append(0)
+            array.append(-angle)
         # array.append(state.speed_x / self._max_speed)
         # array.append(state.speed_y / self._max_speed)
         # array.append(state.speed_z / 10.0)
-        # for j in [7, 8, 9, 10, 11, 12]:
-        #     if math.fabs(state.distance_from_center) > 1 or state.distances_from_edge[j] < 0:
-        #         array.append(-1)
-        #     else:
-        #         array.append(state.distances_from_edge[j] / 200.0)
-        array.append(state.distance_from_center)
+        for j in [7, 8, 9, 10, 11, 12]:
+            if math.fabs(state.distance_from_center) > 1 or state.distances_from_edge[j] < 0:
+                array.append(0)
+            else:
+                array.append(state.distances_from_edge[j] / 200.0)
+        dist = state.distance_from_center
+        if dist > 0:
+            array.append(dist)
+            array.append(0)
+        else:
+            array.append(0)
+            array.append(-dist)
+
         for j in range(4):
             array.append(state.wheel_velocities[j] / 3000.0)  # /150.0
         # array.append(state.z - 0.36)
 
         for j in self.opponents_array:
-            array.append(state.opponents[j] / 200.0)
+            array.append(0)
         return np.array(array)
