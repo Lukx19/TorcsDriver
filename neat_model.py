@@ -62,25 +62,6 @@ class NeatModel(Model):
 
     def predict(self, state, old_state=None):
         inputs = self.stateToInput(state)
-        # if state.distance_from_center >= 1:
-        #     if state.angle < 90:
-        #         self.steering = -0.7
-        #     else:
-        #         self.steering = 0.7
-        #     # self.breaking = 1
-        #     print("right", state.distance_from_center)
-        # elif state.distance_from_center <= -1:
-        #     if state.angle > -90:
-        #         self.steering = 0.7
-        #     else:
-        #         self.steering = -0.7
-        #     # self.steering = 0.7
-        #     # self.breaking = 1
-        #     print("left", state.distance_from_center)
-        # else:
-        #     self.steering = inputs[0]
-        #     self.breaking = inputs[1]
-        #     self.acceleration = inputs[2]
 
         if np.isnan(inputs).any():
             print('#####################  NaN inputs')
@@ -92,6 +73,22 @@ class NeatModel(Model):
         # using left and right steering as a separate output nodes
         self.steering = output[0] - output[1]
         self.breaking = output[2]
+
+        if state.distance_from_center >= 3:
+            if state.angle < 90:
+                self.steering = -0.7
+            else:
+                self.steering = 0.7
+                # self.breaking = 1
+            print("right", state.distance_from_center)
+        elif state.distance_from_center <= -3:
+            if state.angle > -90:
+                self.steering = 0.7
+            else:
+                self.steering = -0.7
+            # self.steering = 0.7
+            # self.breaking = 1
+            print("left", state.distance_from_center)
 
         self.predictions += 1
 
