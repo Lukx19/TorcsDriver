@@ -2,7 +2,7 @@ import logging
 
 from pytocl.analysis import DataLogWriter
 from pytocl.car import State, Command
-import os.path
+import os
 import time
 import random
 import pickle
@@ -11,6 +11,10 @@ _logger = logging.getLogger(__name__)
 
 
 class DriverNeat:
+    MIN_UNSTACK_ANGLE = 45
+    MIN_UNSTACK_DIST = 0.4
+    REVERSE_DURATION = 50
+    TURN_180_DDURATION = 50
 
     def __init__(self, model, logdata=True):
 
@@ -47,6 +51,9 @@ class DriverNeat:
             with open(self.out_comm, 'wb') as f:
                 pickle.dump(self.my_state, f)
 
+    def __del__(self):
+        os.remove(self.out_comm)
+
     @property
     def range_finder_angles(self):
         """Iterable of 19 fixed range finder directions [deg].
@@ -75,11 +82,12 @@ class DriverNeat:
             print('car in pos', carstate.race_position)
             self.last_position = carstate.race_position
 
-        # first time drive method gets called save distance from start for reference and save state
+        # first time drive method gets called save distance from start for
+        # reference and save state
         if self.counter == 0:
             self.counter += 1
             self.last_position = carstate.race_position
-            self.distance_from_start = carstate.distance_from_start
+            self.distance_from_start = carstate.distance_raced
             self.my_state['pos'] = carstate.race_position
             self.my_state['steering'] = self.model.getSteering()
             self.my_state['distance_from_start'] = None
@@ -90,12 +98,12 @@ class DriverNeat:
         # save carstate and log if crashed
         self.my_state['pos'] = carstate.race_position
         self.my_state['steering'] = self.model.getSteering()
-        self.my_state['distance_from_start'] = carstate.distance_from_start
+        self.my_state['distance_from_start'] = carstate.distance_raced
         self.logIf(carstate, self.my_state)
         self.model.predict(carstate, self.my_state)
 
-        # load shared state from other driver every 10
-        if carstate.distance_from_start - self.distance_from_start > 10:
+        # load shared state from other driver every 10 m
+        if carstate.distance_raced - self.distance_from_start > 10:
 
             shared_state = self.loadSharedState()
 
@@ -111,68 +119,31 @@ class DriverNeat:
                     self.position_to_slow = dangerous_distance
 
             # update distance from start log
-            self.distance_from_start = carstate.distance_from_start
+            self.distance_from_start = carstate.distance_raced
 
         # check if at dangerous position and slow down if so
-        if self.position_to_slow and abs(self.position_to_slow - carstate.distance_from_start) < 5:
-                print("dangerous place")
-
-                if self.isStuck(carstate) or self.reverse_counter > 0:
-                    print('stuck')
-                    if self.reverse_counter == 0:
-                        self.reverse_counter = 10
-                    self.reverse(carstate, cmd)
-                    self.unstucking = True
-                    self.reverse_counter -= 1
-                    if (abs(carstate.angle) < 15
-                        or abs(carstate.distance_from_center) < 0.2):
-                        self.reverse_counter = 0
-
-                elif self.isGoingBack(carstate) or self.turn180_count > 0:
-                    print("backwards")
-                    self.turn180(carstate, cmd)
-                    if self.turn180_count == 0:
-                        self.turn180_count = 30
-                    self.turn180_count -= 1
-
-                    if abs(carstate.angle) < 15:
-                        self.turn180_count = 0
-                else:
-                    if carstate.gear < 0:
-                        cmd.gear = 0
-                        cmd.brake = 1
-                    else:
-                        self.unstucking = False
-                        cmd.steering = self.model.getSteering()
-                        print('Extra braking')
-
-                        # increase braking at dangerous position
-                        breaking = self.model.getBreak()
-                        breaking += 0.05
-                        self.accelerate(carstate, max(0.1, self.model.getAcceleration()), breaking, cmd)
-
-        # if not at dangerous position, drive normally
-        else:
+        if self.position_to_slow and abs(self.position_to_slow - carstate.distance_raced) < 10:
+            print("dangerous place")
 
             if self.isStuck(carstate) or self.reverse_counter > 0:
                 print('stuck')
                 if self.reverse_counter == 0:
-                    self.reverse_counter = 10
+                    self.reverse_counter = self.REVERSE_DURATION
                 self.reverse(carstate, cmd)
                 self.unstucking = True
                 self.reverse_counter -= 1
-                if (abs(carstate.angle) < 15
-                        or abs(carstate.distance_from_center) < 0.2):
+                if (abs(carstate.angle) < self.MIN_UNSTACK_ANGLE
+                        and abs(carstate.distance_from_center) < self.MIN_UNSTACK_DIST):
                     self.reverse_counter = 0
 
             elif self.isGoingBack(carstate) or self.turn180_count > 0:
                 print("backwards")
                 self.turn180(carstate, cmd)
                 if self.turn180_count == 0:
-                    self.turn180_count = 30
+                    self.turn180_count = self.TURN_180_DDURATION
                 self.turn180_count -= 1
 
-                if abs(carstate.angle) < 15:
+                if abs(carstate.angle) < self.MIN_UNSTACK_ANGLE:
                     self.turn180_count = 0
             else:
                 if carstate.gear < 0:
@@ -181,7 +152,45 @@ class DriverNeat:
                 else:
                     self.unstucking = False
                     cmd.steering = self.model.getSteering()
-                    self.accelerate(carstate, max(0.1, self.model.getAcceleration()), self.model.getBreak(), cmd)
+                    print('Extra braking')
+
+                    # increase braking at dangerous position
+                    # breaking = self.model.getBreak()
+                    # breaking += 0.05
+                    self.accelerate(carstate, 0.2, self.model.getBreak(), cmd)
+
+        # if not at dangerous position, drive normally
+        else:
+
+            if self.isStuck(carstate) or self.reverse_counter > 0:
+                print('stuck')
+                if self.reverse_counter == 0:
+                    self.reverse_counter = self.REVERSE_DURATION
+                self.reverse(carstate, cmd)
+                self.unstucking = True
+                self.reverse_counter -= 1
+                if (abs(carstate.angle) < self.MIN_UNSTACK_ANGLE
+                        and abs(carstate.distance_from_center) < self.MIN_UNSTACK_DIST):
+                    self.reverse_counter = 0
+
+            elif self.isGoingBack(carstate) or self.turn180_count > 0:
+                print("backwards")
+                self.turn180(carstate, cmd)
+                if self.turn180_count == 0:
+                    self.turn180_count = self.REVERSE_DURATION
+                self.turn180_count -= 1
+
+                if abs(carstate.angle) < self.MIN_UNSTACK_ANGLE:
+                    self.turn180_count = 0
+            else:
+                if carstate.gear < 0:
+                    cmd.gear = 0
+                    cmd.brake = 1
+                else:
+                    self.unstucking = False
+                    cmd.steering = self.model.getSteering()
+                    self.accelerate(carstate, max(
+                        0.2, self.model.getAcceleration()), self.model.getBreak(), cmd)
 
         if self.data_logger:
             self.data_logger.log(carstate, cmd)
@@ -233,8 +242,8 @@ class DriverNeat:
         """
         method that returns when car is stuck for more than 10 counts
         """
-        if carstate.speed_x < 2 \
-                and abs(carstate.distance_from_center) > 0.95 \
+        if carstate.speed_x < 4 \
+                and abs(carstate.distance_from_center) > 0.7 \
                 and abs(carstate.angle) > 15 \
                 and carstate.angle * carstate.distance_from_center < 0:
             self.stuck_count += 1
@@ -258,14 +267,17 @@ class DriverNeat:
         """
         method for driving backwards
         """
+        angle_rad = carstate.angle * (3.14/180)
+        steer = -angle_rad / 0.785398
         command.accelerator = 1.0
         command.gear = -1
         command.brake = 0.0
         command.clutch = 0.0
-        if carstate.angle > 0:
-            command.steering = -1
-        else:
-            command.steering = 1
+        command.steering = steer
+        # if carstate.angle > 0:
+        #     command.steering = -1
+        # else:
+        #     command.steering = 1
 
     def turn180(self, carstate, command):
         """
